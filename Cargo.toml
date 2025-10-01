@@ -1,0 +1,8 @@
+
+[workspace]
+members = [
+  "powda-core",
+  "powda-cli"
+]
+
+  resolver = "2"
