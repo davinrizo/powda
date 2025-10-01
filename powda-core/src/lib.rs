@@ -1,3 +1,13 @@
+pub mod domain;
+pub mod error;
+pub mod repository;
+// pub mod services;
+
+pub use error::{Result, Error};
+pub use repository::Store;
+pub use domain::{PasswordEntry, EntryName, Password};
+
+
 pub fn add(left: u64, right: u64) -> u64 {
     left + right
 }
