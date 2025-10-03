@@ -2,6 +2,7 @@ pub mod domain;
 pub mod error;
 pub mod repository;
 // pub mod services;
+pub mod crypto;
 
 pub use error::{Result, Error};
 pub use repository::Store;
