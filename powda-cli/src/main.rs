@@ -12,11 +12,14 @@ async fn main() {
     let handler = PasswordHandler::new();
 
     let result = match cli.command {
-        Commands::Init => handler.init().await,
+        Commands::Init {force} => handler.init(force).await,
         Commands::Add {name} => handler.add(name).await,
         Commands::Get {name} => handler.get(name).await,
         Commands::List => handler.list().await,
         Commands::Remove {name} => handler.remove(name).await,
+        Commands::Unlock => handler.unlock().await,
+        Commands::Lock => handler.lock().await,
+        Commands::ChangeMaster => handler.change_master().await,
     };
 
     if let Err(e) = result {

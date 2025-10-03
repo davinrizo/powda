@@ -10,18 +10,22 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    Init,
+    Init{
+        #[arg(short, long)]
+        force: bool,
+    },
     
+    Unlock,
+    Lock,
     Add {
         name: String,
     },
     Get {
         name: String,
     },
-    
     List,
-    
     Remove {
         name: String,
     },
+    ChangeMaster,
 }

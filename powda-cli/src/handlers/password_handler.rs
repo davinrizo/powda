@@ -1,5 +1,6 @@
 use powda_core::{Store, PasswordEntry, EntryName, Password, Result};
 use powda_core::repository::StoreRepository;
+use powda_core::error::Error;
 use crate::ui;
 
 pub struct PasswordHandler {
@@ -13,13 +14,46 @@ impl PasswordHandler {
         }
     }
 
-    pub async fn init(&self) -> Result<()> {
+    pub async fn init(&self, force:bool) -> Result<()> {
+    if self.store.exists().await && !force {
+            println!("⚠️  Password vault already exists!");
+            println!("Use 'powda init --force' to reinitialize");
+            return Err(Error::AlreadyExists("Vault".to_string()));
+        }
+        
+        // Get master password
+        let password = ui::prompt_password("Enter master password: ")?;
+        let confirm = ui::prompt_password("Confirm master password: ")?;
+        
+        if password != confirm {
+            return Err(Error::Encryption("Passwords don't match".to_string()));
+        }
+        
+        // Check password strength
+        if password.len() < 8 {
+            return Err(Error::Encryption("Password must be at least 8 characters".to_string()));
+        }
+        
         self.store.init().await?;
-        println!("Password store initialized!");
+        println!("✅ Secure vault initialized!");
+        println!("⚠️  Remember your master password - it cannot be recovered!");
+        Ok(())
+    }
+
+    pub async fn unlock(&self) -> Result<()> {
+        let password = ui::prompt_password("Enter master password: ")?;
+        self.store.unlock(&password).await?;
+        println!("Vault unlocked!");
         Ok(())
     }
 
     pub async fn add(&self, name: String) -> Result<()> {
+
+        if self.store.is_locked().await {
+            println!("🔒 Vault is locked. Unlocking...");
+            self.unlock().await?;
+        }
+
         let entry_name = EntryName::new(name.clone())
             .map_err(|e| powda_core::Error::Encryption(e))?;
 
@@ -74,6 +108,25 @@ impl PasswordHandler {
             println!("Cancelled!");
         }
 
+        Ok(())
+    }
+    pub async fn lock(&self) -> Result<()> {
+    self.store.lock().await?;
+    println!("Vault locked!");
+    Ok(())
+}
+
+    pub async fn change_master(&self) -> Result<()> {
+        let current = rpassword::prompt_password("Enter current master password: ")?;
+        let new = rpassword::prompt_password("Enter new master password: ")?;
+        let confirm = rpassword::prompt_password("Confirm new master password: ")?;
+    
+        if new != confirm {
+            return Err(Error::Encryption("Passwords don't match".to_string()));
+        }
+    
+        self.store.change_master_password(&current, &new).await?;
+        println!("Master password changed successfully!");
         Ok(())
     }
 }
