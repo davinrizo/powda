@@ -95,18 +95,22 @@ impl Store {
         Ok(())
     }
 
-    fn load_data(&self) -> Result<HashMap<String, PasswordEntry>> {
-        if !self.path.exists() {
-            return Err(Error::NotInitialized);
-        }
+    fn get_data(&self) -> Result<HashMap<String, PasswordEntry>> {
+        let cache = self.cache.lock().unwrap();
 
-        let contents = fs::read_to_string(&self.path)?;
-        Ok(serde_json::from_str(&contents)?)
+        match &*cache {
+            Some(data) => Ok(data.clone()),
+            None => Err(Error::Encryption("Vault is locked. Run 'powda unlock' first!".to_string())),
+        }
     }
 
     fn save_data(&self, data: &HashMap<String, PasswordEntry>) -> Result<()> {
-        let json = serde_json::to_string_pretty(data)?;
-        fs::write(&self.path, json)?;
+        {
+            let mut cache = self.cache.lock().unwrap();
+            *cache = Some(data.clone());
+        }
+
+        self.save_vault(&data)?;
         Ok(())
     }
 }
@@ -165,7 +169,7 @@ impl StoreRepository for Store {
     }
 
     async fn add(&self, entry: PasswordEntry) -> Result<()> {
-        let mut data = self.load_data()?;
+        let mut data = self.get_data()?;
 
         let key = entry.name.as_str().to_string();
         if data.contains_key(&key) {
@@ -178,28 +182,28 @@ impl StoreRepository for Store {
     }
 
     async fn get(&self, name: &EntryName) -> Result<PasswordEntry> {
-        let data = self.load_data()?;
+        let data = self.get_data()?;
         data.get(name.as_str())
             .cloned()
             .ok_or_else(|| Error::NotFound(name.as_str().to_string()))
     }
 
     async fn list(&self) -> Result<Vec<EntryName>> {
-        let data = self.load_data()?;
+        let data = self.get_data()?;
         data.values()
             .map(|entry| Ok(entry.name.clone()))
             .collect()
     }
 
     async fn update(&self, entry: PasswordEntry) -> Result<()> {
-        let mut data = self.load_data()?;
+        let mut data = self.get_data()?;
         data.insert(entry.name.as_str().to_string(), entry);
         self.save_data(&data)?;
         Ok(())
     }
 
     async fn remove(&self, name: &EntryName) -> Result<()> {
-        let mut data = self.load_data()?;
+        let mut data = self.get_data()?;
 
         if data.remove(name.as_str()).is_none() {
             return Err(Error::NotFound(name.as_str().to_string()));
