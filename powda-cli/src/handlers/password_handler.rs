@@ -20,6 +20,31 @@ impl PasswordHandler {
             println!("Use 'powda init --force' to reinitialize");
             return Err(Error::AlreadyExists("Vault".to_string()));
         }
+
+        if force && self.store.exists().await {
+            println!("Force initializing will delete all existing passwords!");
+            println!("Are you sure? (y/N)");
+
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input).map_err(Error::from)?;
+
+            if input.trim().to_lowercase() != "y" {
+                println!("Cancelled.");
+                return Ok(())
+            }
+
+            let home = std::env::var("HOME").expect("HOME not set");
+
+            let old_path = std::path::PathBuf::from(&home).join(".powda_store.json");
+            let new_path = std::path::PathBuf::from(&home).join(".powda_vault.encrypted");
+
+            if old_path.exists() {
+                std::fs::remove_file(old_path).ok();
+            }
+            if new_path.exists() {
+                std::fs::remove_file(new_path).ok();
+            }
+        }
         
         // Get master password
         let password = ui::prompt_password("Enter master password: ")?;
@@ -34,7 +59,7 @@ impl PasswordHandler {
             return Err(Error::Encryption("Password must be at least 8 characters".to_string()));
         }
         
-        self.store.init().await?;
+        self.store.init(&password).await?;
         println!("✅ Secure vault initialized!");
         println!("⚠️  Remember your master password - it cannot be recovered!");
         Ok(())

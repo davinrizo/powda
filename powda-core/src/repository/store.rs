@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 #[async_trait]
 pub trait StoreRepository: Send + Sync {
-    async fn init(&self) -> Result<()>;
+    async fn init(&self, master_password: &str) -> Result<()>;
     async fn unlock(&self, master_password: &str) -> Result<()>;
     async fn lock(&self) -> Result<()>;
     async fn is_locked(&self) -> bool;
@@ -31,7 +31,7 @@ pub struct Store {
 impl Store {
     pub fn new() -> Self {
         let home = std::env::var("HOME").expect("HOME not set");
-        let path = PathBuf::from(home).join(".powda_store.json");
+        let path = PathBuf::from(home).join(".powda_vault.encrypted");
         Store {
             path,
             crypto: Arc::new(Mutex::new(CryptoManager::new())),
@@ -49,6 +49,7 @@ impl Store {
 
     fn load_vault(&self, master_password: &str) -> Result<HashMap<String, PasswordEntry>> {
         if !self.path.exists() {
+            eprintln!("DEBUG: Vault file doesn't exists at {:?}", self.path);
             return Err(Error::NotInitialized);
         }
 
@@ -114,13 +115,24 @@ impl Store {
 #[async_trait]
 impl StoreRepository for Store {
 
-    async fn init(&self) -> Result<()> {
+    async fn init(&self, master_password: &str) -> Result<()> {
         if self.path.exists() {
             return Err(Error::AlreadyExists("Store".to_string()));
         }
 
         let data: HashMap<String, PasswordEntry> = HashMap::new();
-        self.save_data(&data)?;
+        let json_data = serde_json::to_vec(&data)?;
+
+        let mut crypto = self.crypto.lock().unwrap();
+        let vault = crypto.create_vault(master_password, &json_data)?;
+
+        let vault_json = serde_json::to_string_pretty(&vault)?;
+        fs::write(&self.path, vault_json)?;
+
+        let mut cache = self.cache.lock().unwrap();
+        *cache = Some(data);
+
+
         Ok(())
     }
 

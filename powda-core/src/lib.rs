@@ -7,6 +7,7 @@ pub mod crypto;
 pub use error::{Result, Error};
 pub use repository::Store;
 pub use domain::{PasswordEntry, EntryName, Password};
+pub use crypto::{CryptoManager, EncryptedVault};
 
 
 pub fn add(left: u64, right: u64) -> u64 {
