@@ -14,6 +14,15 @@ impl PasswordHandler {
         }
     }
 
+    async fn ensure_unlocked(&self ) -> Result<()> {
+        if self.store.is_locked().await {
+            let password = ui::prompt_password("Enter master password: ")?;
+            self.store.unlock(&password).await
+                .map_err(|_| Error::Encryption("Invalid Master password".to_string()))?;
+        }
+        Ok(())
+    }
+
     pub async fn init(&self, force:bool) -> Result<()> {
     if self.store.exists().await && !force {
             println!("⚠️  Password vault already exists!");
@@ -74,10 +83,7 @@ impl PasswordHandler {
 
     pub async fn add(&self, name: String) -> Result<()> {
 
-        if self.store.is_locked().await {
-            println!("🔒 Vault is locked. Unlocking...");
-            self.unlock().await?;
-        }
+        self.ensure_unlocked().await?;
 
         let entry_name = EntryName::new(name.clone())
             .map_err(|e| powda_core::Error::Encryption(e))?;
@@ -95,15 +101,22 @@ impl PasswordHandler {
     }
 
     pub async fn get(self, name: String) -> Result<()> {
+        self.ensure_unlocked().await?;
+
         let entry_name = EntryName::new(name)
             .map_err(|e| powda_core::Error::Encryption(e))?;
 
         let entry = self.store.get(&entry_name).await?;
         println!("Password: {}", entry.password.as_str());
+
+        // TODO: clipboard
+        println!("Clipboard support soon!");
+
         Ok(())
     }
 
     pub async fn list(&self) -> Result<()> {
+        self.ensure_unlocked().await?;
 
         let entries = self.store.list().await?;
         if entries.is_empty() {
@@ -118,6 +131,8 @@ impl PasswordHandler {
     }
 
     pub async fn remove(&self, name: String) -> Result<()> {
+        self.ensure_unlocked().await?;
+
         let entry_name = EntryName::new(name.clone())
             .map_err(|e| powda_core::Error::Encryption(e))?;
 
@@ -142,6 +157,8 @@ impl PasswordHandler {
 }
 
     pub async fn change_master(&self) -> Result<()> {
+        self.ensure_unlocked().await?;
+
         let current = rpassword::prompt_password("Enter current master password: ")?;
         let new = rpassword::prompt_password("Enter new master password: ")?;
         let confirm = rpassword::prompt_password("Confirm new master password: ")?;
